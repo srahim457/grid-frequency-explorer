@@ -412,13 +412,68 @@ Notes:
 - `events.json` records the band and merge gap used, so a stale file can't be mistaken for a
   different threshold; a test asserts the committed file matches a fresh search.
 
+From `python -m benchmarks.bench` (step 4). Machine: 17.2 GB RAM, ~83% in use by other
+apps during the run. Median of 50 reps (10 at 2^24+), random start positions, `perf_counter`.
+
+**Range sweep on the real month (2,678,400 points), median ms:**
+
+| Range | brute force | binary search | tree | tree nodes |
+|---|---|---|---|---|
+| 1 minute | 1.007 | **0.013** | 0.022 | 7 |
+| 1 hour | 1.339 | **0.018** | 0.045 | 12 |
+| 1 day | 1.445 | 0.089 | **0.052** | 14 |
+| 1 week | 2.007 | 0.540 | **0.058** | 18 |
+| full dataset | 4.590 | 2.308 | **0.022** | 9 |
+
+**Event search (whole month):** numpy mask 1.880 ms touching 2,678,400 points;
+tree 0.614 ms visiting 323 nodes. ~3x faster while looking at ~8,300x less.
+
+**Scaling (full range):**
+
+| Points | tree build | tree (aligned) | tree (unaligned) | binary search | brute force |
+|---|---|---|---|---|---|
+| 2,678,400 | 39 ms | 0.022 (9 nodes) | 0.082 (35 nodes) | 2.58 | 5.14 |
+| 4,194,304 (2^22) | 70 ms | 0.005 (1 node) | 0.101 (42 nodes) | 4.25 | 8.90 |
+| 16,777,216 (2^24) | 297 ms | 0.005 (1 node) | 0.110 (46 nodes) | 18.07 | 36.95 |
+| 67,108,864 (2^26) | **skipped** | needs ~2.68 GB, budget 1.94 GB (70% of free RAM) | | | |
+| 134,217,728 (2^27) | **skipped** | needs ~5.37 GB | | | |
+
+Notes:
+- **At narrow ranges numpy wins and the tree loses.** For a 1-minute range binary search is
+  ~1.7x faster than the tree: slicing 60 contiguous float32s is less work than walking 7 tree
+  nodes in Python. The crossover is around **1 day**; past that the tree pulls away, and at
+  full range it is ~100x faster than binary search. This is the honest finding CLAUDE.md
+  predicted, and it is a *Python-overhead* result, not an algorithmic one.
+- **Brute force is flat-ish and always slow** (1.0-4.6 ms) because it masks all 2.7M points
+  regardless of how little data is asked for. Its cost tracks the dataset, not the question.
+- **Growth rates are the real result.** 4x more data costs brute force ~4.2x and binary
+  search ~4.3x more time, but the tree ~1.3x (35 -> 46 nodes). The lines diverge on the
+  log-log plot and would keep diverging.
+- **The "aligned" tree row is a measurement artifact worth knowing.** At a power-of-two N the
+  full range *is* the root node, so `stats` touches 1 node and finishes in 5 microseconds.
+  That is real but unrepresentative, so the benchmark also measures the same span offset by
+  one second, which forces the full O(log N) decomposition. The plot shows both; the solid
+  line is the honest one.
+- **Tree build is a real one-off cost** (~18 ns/point, so 39 ms for the month, 297 ms at
+  2^24). It pays for itself after roughly 8 full-range brute-force queries, but it is pure
+  overhead for a dataset queried once.
+- **2^26 and 2^27 were skipped for RAM, not for convenience.** At 40 bytes/point (4 raw + 20
+  tree + transient build buffers) 2^26 needs ~2.7 GB against a 1.94 GB budget (70% of free
+  RAM). The script estimates before each size, recalibrates from measured peak RSS, and
+  records the skip in the CSV. Re-running with more free memory will include them.
+- Fairness: the baselines get an int64 epoch-ms timestamp array (their fastest option), built
+  outside every timed region, and all three methods see the same random starts. The script
+  cross-checks that all three return identical answers before timing any of them
+  (`methods agree: True`).
+- `python -m benchmarks.bench --plot-only` redraws the PNG from the CSV without re-measuring.
+
 ## Progress
 
 - [x] Step 0: Load and check the data
 - [x] Step 1: Build the segment tree
 - [x] Step 2: Query functions
 - [x] Step 3: Event search
-- [ ] Step 4: Benchmarks
+- [x] Step 4: Benchmarks
 - [ ] Step 5: API server
 - [ ] Step 6: Dashboard
 - [ ] Step 7: README report
