@@ -318,11 +318,67 @@ Notes:
 - Gap handling (NaN, no interpolation) is implemented and tested, but there are no real gaps in
   this file; the NaN paths are only covered by synthetic tests.
 
+From `python -m backend.tree` (step 1):
+
+| Field | Value |
+|---|---|
+| Levels | 23 (0..22); level 0 = raw array, level 22 = 1 window of 4,194,304 s |
+| Windows at level 1 | 1,339,200 (N/2) |
+| Build time | 53 ms (vectorized, bottom-up) |
+| Tree memory | 53.6 MB = 5.0x the 10.7 MB raw array |
+| Process RSS delta during build | 93.7 MB (includes transient pair buffers) |
+| Top-level count | 2,678,400 == valid points (no NaNs in this month) |
+| Top-level min / max / mean | 48.787 / 50.274 / 49.9997 Hz |
+| Cache | `data/processed/tree.npz`, 53.6 MB, keys `min_k`/`max_k`/`sum_k`/`count_k` |
+
+Notes:
+- The 5x memory overhead is mostly level 1: 17 bytes per window (float32 min + float32
+  max + float64 sum + int32 count) over N/2 windows = 8.5 bytes per raw second, vs 4 bytes
+  for the float32 value itself. Levels above that halve each time, so levels 2..22 together
+  add only ~26 MB. `sum` is float64 deliberately: adding 2.7M float32 values in float32
+  loses precision in the mean.
+- Padding costs at most one empty slot per level (23 total), not a power-of-two pad, which
+  would round 2,678,400 up to 4,194,304 and add ~1.5M phantom windows.
+- Level 0 is derived on demand (`tree.nodes(0, lo, hi)`) rather than stored, saving ~32 MB
+  of redundant min/max/sum/count arrays.
+- Top-level min/max/mean match `np.nanmin`/`nanmax`/`nanmean` over the whole month, and the
+  min of 48.787 Hz is the 9 August excursion showing through the summaries.
+
+From `python -m backend.query` (step 2):
+
+| Range | level chosen (max_points=800) | window | points returned |
+|---|---|---|---|
+| 1 minute | 0 | 1 s | 60 |
+| 1 hour | 3 | 8 s | 450 |
+| 1 day | 7 | 128 s | 675 |
+| 1 week | 10 | 1,024 s | 591 |
+| full month | 12 | 4,096 s | 654 |
+
+| `stats` range | min | max | mean | count | nodes touched | time |
+|---|---|---|---|---|---|---|
+| Full month | 48.787 | 50.274 | 49.9997 | 2,678,400 | 9 | 0.04 ms |
+| 9 Aug 15:52 +/- 10 min | 48.787 | 50.248 | 49.9156 | 1,200 | 10 | 0.03 ms |
+| 1 Aug 00:00-01:00 UTC | 49.874 | 50.052 | 49.9452 | 3,600 | 4 | 0.01 ms |
+
+Notes:
+- The month's minimum (48.787 Hz) falls inside the 9 August 15:52 UTC window, which is the
+  first independent confirmation of the event from the tree rather than from the raw file.
+- Reading the whole month exactly costs **9 nodes** out of 2.7M points, and the worst random
+  range stays under 2 x log2(N) + 2 = 46.
+- `stats` stays correct with ceil-sized levels because both boundaries remain exact multiples
+  of the current window size, so a taken node never reaches past N; the partial last window is
+  never over-counted. Verified exhaustively on all 105 ranges of a 13-point series.
+- Mean references in tests use `np.nanmean` on a **float64** cast: `nanmean` over a float32
+  array accumulates in float32 and drifts past the 1e-9 tolerance over millions of points, so
+  the float64 result is the more accurate ground truth (this is why the tree stores `sum` as
+  float64).
+- Empty windows and empty ranges return `None`, not NaN, so step 5 needs no NaN scrubbing.
+
 ## Progress
 
 - [x] Step 0: Load and check the data
-- [ ] Step 1: Build the segment tree
-- [ ] Step 2: Query functions
+- [x] Step 1: Build the segment tree
+- [x] Step 2: Query functions
 - [ ] Step 3: Event search
 - [ ] Step 4: Benchmarks
 - [ ] Step 5: API server
