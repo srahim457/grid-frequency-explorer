@@ -1,0 +1,14 @@
+name: grid-frequency-explorer
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11
+  - numpy
+  - pandas
+  - fastapi
+  - uvicorn
+  - httpx          # FastAPI's TestClient
+  - pytest
+  - matplotlib     # benchmark plots only
+  - psutil
+  - nodejs>=20     # frontend (Vite + React + D3), installed with npm inside frontend/
