@@ -374,12 +374,50 @@ Notes:
   float64).
 - Empty windows and empty ranges return `None`, not NaN, so step 5 needs no NaN scrubbing.
 
+From `python -m backend.events` (step 3):
+
+| Field | Value |
+|---|---|
+| Band | 49.5-50.5 Hz, `merge_gap_s=30` |
+| Events found in August 2019 | **1** |
+| Out-of-band seconds | 142 |
+| Nodes visited | 323 of 2,678,400 points (0.0121%, ~8,300x fewer) |
+| Search time | 1.6 ms |
+| Matches a full numpy mask | yes, identical 142 indices |
+
+The single event (`results/events.json`):
+
+| id | start (UTC) | duration_s | direction | extreme_hz | time_of_extreme (UTC) | recovery_s | max_rocof_hz_per_s |
+|---|---|---|---|---|---|---|---|
+| 0 | 2019-08-09 15:52:38 | 142 | under | 48.787 | 2019-08-09 15:53:49 | 71 | 0.151 |
+
+Notes:
+- The 9 August power cut is confirmed from the data at **15:52:38 UTC**, 38 seconds after the
+  ~15:52 UTC figure in the brief, with no timezone adjustment. It is the *only* excursion in
+  the entire month, and it is downward, as `value_max = 50.274` predicted.
+- Shape of the event (sampled every 10 s): ~50.01 Hz until 15:52:28, then a drop to a plateau
+  around 49.12-49.22, then a second deeper fall to 48.787 Hz at 15:53:49, then recovery back
+  through 49.5 Hz at 15:55:00. The two-stage decline is consistent with two generators being
+  lost in sequence, and 48.8 Hz is the level at which low-frequency demand disconnection trips.
+- `end` is **exclusive**: `end - start == duration_s * 1000`, so an event's `(start, end)` can
+  be passed straight to `query()`/`stats()`. This matches the half-open convention used
+  everywhere else.
+- `recovery_s = 71` is measured from the extreme to the first in-band second *after the whole
+  merged event*, so a momentary touch of 49.5 Hz mid-event cannot shorten it. It steps over
+  NaN seconds if the data is missing right after an event.
+- `max_rocof_hz_per_s = 0.151` is a coarse **lower bound**: 1-second sampling cannot resolve a
+  transient that real RoCoF relays measure over ~500 ms windows.
+- Pruning is what makes this cheap: a node whose [min, max] fits inside the band, or whose
+  count is 0, is rejected whole. Flat in-band data visits exactly **one** node (the root).
+- `events.json` records the band and merge gap used, so a stale file can't be mistaken for a
+  different threshold; a test asserts the committed file matches a fresh search.
+
 ## Progress
 
 - [x] Step 0: Load and check the data
 - [x] Step 1: Build the segment tree
 - [x] Step 2: Query functions
-- [ ] Step 3: Event search
+- [x] Step 3: Event search
 - [ ] Step 4: Benchmarks
 - [ ] Step 5: API server
 - [ ] Step 6: Dashboard

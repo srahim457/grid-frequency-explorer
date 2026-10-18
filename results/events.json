@@ -1,0 +1,24 @@
+{
+  "band": {
+    "low": 49.5,
+    "high": 50.5
+  },
+  "merge_gap_s": 30,
+  "n_points": 2678400,
+  "n_out_of_band_seconds": 142,
+  "nodes_visited": 323,
+  "n_events": 1,
+  "events": [
+    {
+      "id": 0,
+      "start": 1565365958000,
+      "end": 1565366100000,
+      "duration_s": 142,
+      "direction": "under",
+      "extreme_hz": 48.787,
+      "time_of_extreme": 1565366029000,
+      "recovery_s": 71,
+      "max_rocof_hz_per_s": 0.151
+    }
+  ]
+}
