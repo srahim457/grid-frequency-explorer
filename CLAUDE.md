@@ -478,6 +478,43 @@ Notes:
 - `python -m benchmarks.bench --plot-only` redraws all three PNGs from the CSV without
   re-measuring.
 
+From `uvicorn backend.api:app` (step 5):
+
+| Endpoint | Example | Response |
+|---|---|---|
+| `GET /meta` | - | `{start: 1564617600000, end: 1567296000000, n_points: 2678400, n_missing: 0, levels: 23, band: {low: 49.5, high: 50.5}}` |
+| `GET /query` | `?start=...&end=...&width=200` | `{level: 0, window_seconds: 1, points: [...]}` |
+| `GET /stats` | the 9 Aug event's own span | `{min: 48.787, max: 49.496, mean: 49.1221, count: 142, nodes_touched: 7, elapsed_ms: 0.083}` |
+| `GET /events` | - | the one step-3 event |
+
+Notes:
+- **`/meta`'s `end` is exclusive**: `end - start == n_points * 1000`, so the frontend can
+  feed `/meta`'s own `start`/`end` back into `/query` and get the whole month with no
+  off-by-one. `end` is 2019-09-01T00:00:00Z, one second past the last reading.
+- `/stats` over the event's own `(start, end)` returns `max = 49.496` -- below the 49.5
+  floor, because every second in that span is out of band. A useful cross-check that the
+  event boundaries are right.
+- **400 vs 422:** FastAPI's `Query(ge=..., le=...)` answers 422, but the spec asks for 400,
+  so `start >= end` and `width` outside 1-5000 are validated by hand and the `detail` names
+  the offending value. A *missing* or unparseable param still gets FastAPI's own 422, which
+  is the standard behaviour and is asserted in the tests.
+- **NaN never reaches the wire.** Step 2's decision to return `None` rather than NaN means
+  there is no scrubbing pass here; a test parses every response strictly and asserts the
+  string `NaN` never appears (bare `NaN` is invalid JSON and breaks `JSON.parse` in the
+  browser).
+- **Startup builds what is missing and says so.** `load_tree()` already builds the series
+  and tree caches; a missing or empty `results/events.json` triggers `find_events()` +
+  `write_events()` at WARNING level so it is never silent. `n_missing` comes from the root
+  node's count, not a 2.7M-element scan.
+- **Startup failure is fatal and actionable.** `data/` is gitignored, so a fresh clone will
+  fail here; the `RuntimeError` names the cause, the NESO URL, where to put the file and
+  `python -m backend.loader`. A server that cannot load its data aborts rather than serving
+  500s from every endpoint.
+- The tree is loaded once into module state and shared by every request -- that is what
+  makes thousands of zoom/pan queries cheap.
+- `httpx` emits a `StarletteDeprecationWarning` ("install httpx2") via `TestClient`. It is
+  upstream noise, not a problem with our code.
+
 ## Progress
 
 - [x] Step 0: Load and check the data
@@ -485,6 +522,6 @@ Notes:
 - [x] Step 2: Query functions
 - [x] Step 3: Event search
 - [x] Step 4: Benchmarks
-- [ ] Step 5: API server
+- [x] Step 5: API server
 - [ ] Step 6: Dashboard
 - [ ] Step 7: README report
