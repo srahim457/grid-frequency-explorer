@@ -41,6 +41,8 @@ from backend.tree import SegmentTree, build_tree
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 CSV_PATH = RESULTS_DIR / "benchmarks.csv"
 PLOT_PATH = RESULTS_DIR / "benchmark_scaling.png"
+RANGE_PANELS_PATH = RESULTS_DIR / "benchmark_ranges_panels.png"
+RANGE_LOG_PATH = RESULTS_DIR / "benchmark_ranges_log.png"
 
 # Bytes per raw point needed to build *and* hold the tree, used to decide whether
 # a scaling size fits in RAM before we try it. The tree itself is 20 bytes per
@@ -393,6 +395,144 @@ def plot_scaling(rows: list[Row], path: Path = PLOT_PATH) -> bool:
     return True
 
 
+# --------------------------------------------------------------------------
+# range-sweep plots: cost vs how much of the dataset you ask for
+# --------------------------------------------------------------------------
+
+# Categorical slots 1-3, which validate on the all-pairs list in both modes.
+SWEEP_STYLE = {
+    "brute_force": ("#2a78d6", "o", "brute force"),
+    "binary_search": ("#eb6834", "s", "binary search"),
+    "tree": ("#1baf7a", "D", "tree stats()"),
+}
+PANEL_ZOOMS = [(0, 4.7), (0, 0.6), (0, 0.07)]
+
+
+def _sweep_series(rows: list[Row]) -> tuple[list[str], dict[str, list[float]]]:
+    """(x labels in sweep order, {method: median_ms per label})."""
+    labels: list[str] = []
+    series: dict[str, list[float]] = {}
+    for row in rows:
+        if row.benchmark != "range_sweep":
+            continue
+        if row.range_label not in labels:
+            labels.append(row.range_label)
+        series.setdefault(row.method, []).append(row.median_ms)
+    return labels, series
+
+
+def _style_axis(ax, grid_minor: bool = False) -> None:
+    ax.set_facecolor(SURFACE)
+    ax.grid(True, which="major", color=GRID, linewidth=0.8, zorder=0)
+    if grid_minor:
+        ax.grid(True, which="minor", color=GRID, linewidth=0.4, alpha=0.5, zorder=0)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    for spine in ("left", "bottom"):
+        ax.spines[spine].set_color(GRID)
+    ax.tick_params(colors=INK_SECONDARY, labelsize=9)
+
+
+def plot_range_sweep_panels(rows: list[Row], path: Path = RANGE_PANELS_PATH) -> bool:
+    """Three linear panels, each zooming into the floor of the one above.
+
+    The numbers span 0.013-4.59 ms, so one linear axis cannot show both the
+    brute-force scale and the crossover at ~0.05 ms. Stacked zooms keep the
+    axis linear (and the top panel at the full 0-4.7 ms) while still letting
+    the crossover be seen.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    labels, series = _sweep_series(rows)
+    if not series:
+        return False
+    x = list(range(len(labels)))
+
+    fig, axes = plt.subplots(3, 1, figsize=(9, 9.5), dpi=150, sharex=True)
+    fig.patch.set_facecolor(SURFACE)
+
+    for panel, (ax, (lo, hi)) in enumerate(zip(axes, PANEL_ZOOMS)):
+        _style_axis(ax)
+        for method, (color, marker, label) in SWEEP_STYLE.items():
+            if method not in series:
+                continue
+            ax.plot(x, series[method], color=color, marker=marker, linewidth=2,
+                    markersize=7, label=label, zorder=3, clip_on=True)
+        ax.set_ylim(lo, hi)
+        ax.set_ylabel("median time (ms)", fontsize=9, color=INK_SECONDARY)
+        # Say what this panel is, and that anything above it is cut off.
+        above = [SWEEP_STYLE[m][2] for m in series if max(series[m]) > hi]
+        corner = f"y: {lo}-{hi} ms"
+        if panel > 0 and above:
+            corner += f"   (above range: {', '.join(above)})"
+        at_left = panel == 0  # the full-range panel's data climbs at the right
+        ax.annotate(corner, (0.005 if at_left else 0.995, 0.93),
+                    xycoords="axes fraction", ha="left" if at_left else "right",
+                    fontsize=8.5, color=INK_SECONDARY)
+
+    axes[0].set_title("Cost vs how much of the month you ask for (2,678,400 points)",
+                      fontsize=12, color=INK, pad=14)
+    axes[-1].set_xticks(x)
+    axes[-1].set_xticklabels(labels)
+    axes[-1].set_xlabel("range requested", fontsize=10, color=INK_SECONDARY)
+    handles, legend_labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, legend_labels, frameon=False, fontsize=9,
+               labelcolor=INK_SECONDARY, loc="lower center", ncol=3,
+               bbox_to_anchor=(0.5, 0.005))
+
+    fig.tight_layout(rect=(0, 0.045, 1, 1))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, facecolor=SURFACE)
+    plt.close(fig)
+    return True
+
+
+def plot_range_sweep_log(rows: list[Row], path: Path = RANGE_LOG_PATH) -> bool:
+    """One panel, log y: the crossover shows up as an actual line intersection."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    labels, series = _sweep_series(rows)
+    if not series:
+        return False
+    x = list(range(len(labels)))
+
+    fig, ax = plt.subplots(figsize=(9, 5.5), dpi=150)
+    fig.patch.set_facecolor(SURFACE)
+    _style_axis(ax, grid_minor=True)
+
+    for method, (color, marker, label) in SWEEP_STYLE.items():
+        if method not in series:
+            continue
+        ax.plot(x, series[method], color=color, marker=marker, linewidth=2,
+                markersize=7, label=label, zorder=3)
+        ax.annotate(label, (x[-1], series[method][-1]), textcoords="offset points",
+                    xytext=(10, 0), va="center", fontsize=9, color=INK_SECONDARY)
+
+    ax.set_yscale("log")
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_xlabel("range requested", fontsize=10, color=INK_SECONDARY)
+    ax.set_ylabel("median time (ms, log scale)", fontsize=10, color=INK_SECONDARY)
+    ax.set_title("Cost vs how much of the month you ask for (2,678,400 points)",
+                 fontsize=12, color=INK, pad=14)
+    ax.margins(x=0.10)
+    ax.legend(frameon=False, fontsize=9, labelcolor=INK_SECONDARY,
+              loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3)
+
+    fig.tight_layout()
+    fig.subplots_adjust(right=0.84)  # room for the direct labels
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, facecolor=SURFACE)
+    plt.close(fig)
+    return True
+
+
 def print_table(rows: list[Row]) -> None:
     """The table view the contrast WARN obliges, and the quickest way to read results."""
     groups: dict[str, list[Row]] = {}
@@ -435,8 +575,11 @@ def main() -> None:
     import sys
 
     if "--plot-only" in sys.argv:
-        plot_scaling(read_csv())
-        print(f"redrew -> {PLOT_PATH}")
+        cached = read_csv()
+        for drew, where in [(plot_scaling(cached), PLOT_PATH),
+                            (plot_range_sweep_panels(cached), RANGE_PANELS_PATH),
+                            (plot_range_sweep_log(cached), RANGE_LOG_PATH)]:
+            print(f"redrew -> {where}" if drew else f"skipped {where.name}: no data")
         return
 
     from backend.tree import load_tree
@@ -470,7 +613,10 @@ def main() -> None:
     if plot_scaling(rows):
         print(f"wrote -> {PLOT_PATH}")
     else:
-        print("plot skipped: fewer than two scaling sizes completed")
+        print("scaling plot skipped: fewer than two scaling sizes completed")
+    for drew, where in [(plot_range_sweep_panels(rows), RANGE_PANELS_PATH),
+                        (plot_range_sweep_log(rows), RANGE_LOG_PATH)]:
+        print(f"wrote -> {where}" if drew else f"skipped {where.name}: no sweep data")
     for note in notes:
         print(f"note: {note}")
 

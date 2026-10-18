@@ -465,7 +465,18 @@ Notes:
   outside every timed region, and all three methods see the same random starts. The script
   cross-checks that all three return identical answers before timing any of them
   (`methods agree: True`).
-- `python -m benchmarks.bench --plot-only` redraws the PNG from the CSV without re-measuring.
+- Three plots, all drawn from `benchmarks.csv`:
+  - `results/benchmark_scaling.png` -- x is **dataset size** (2.7M -> 16.8M), always a
+    full-range query. Answers "how does each method grow as the data grows?"
+  - `results/benchmark_ranges_log.png` -- x is **how much of the month you ask for**
+    (1 min -> full), log y. The binary-search/tree crossover at ~1 day is a visible
+    line intersection. This is the clearest single chart of the two-regime result.
+  - `results/benchmark_ranges_panels.png` -- the same range sweep on three stacked
+    **linear** panels (0-4.7 / 0-0.6 / 0-0.07 ms), each zooming into the floor of the one
+    above. One linear axis cannot hold 0.013 ms and 4.59 ms at once; the stack keeps the
+    axis linear and still reaches the crossover.
+- `python -m benchmarks.bench --plot-only` redraws all three PNGs from the CSV without
+  re-measuring.
 
 ## Progress
 
