@@ -515,6 +515,47 @@ Notes:
 - `httpx` emits a `StarletteDeprecationWarning` ("install httpx2") via `TestClient`. It is
   upstream noise, not a problem with our code.
 
+From `npm run dev` (step 6). Theme: cyberpunk, black background, white axes.
+
+| Piece | Where | Notes |
+|---|---|---|
+| Chart | full width, `src/Chart.jsx` | min-max band + mean line, event spans, dashed 49.5/50.0/50.5 |
+| Stats panel | header row, **top right** | min / max / mean / readings + tree level + `/stats` time |
+| Events list | full-width strip below the chart | click a row to zoom with 10 min padding |
+
+Palette (validated, not eyeballed) against a `#000000` surface in dark mode:
+
+| Role | Hex | |
+|---|---|---|
+| frequency (band + mean) | `#00a3ba` | glow `#4fe8ff` |
+| excursions | `#be1a85` | glow `#ff57c8` |
+| statutory limits | `#b57c00` | glow `#ffc43d` |
+| axes | `#ffffff` | per request |
+
+All gates pass: lightness band, chroma floor, all-pairs CVD dE 11.0, normal-vision dE 23.0,
+contrast all >= 3:1.
+
+Notes:
+- **Pure neon failed the lightness-band check** (cyan L 0.844, amber 0.85 against a 0.48-0.67
+  dark-mode band), so the glow comes from an SVG `feGaussianBlur` bloom halo behind the mean
+  line rather than from blowing out the hues. The marks keep validated colours; the look is
+  still neon.
+- **CSS custom properties do not resolve in SVG presentation attributes.** `fill="var(--data)"`
+  is silently ignored and falls back to black. All mark colours therefore live in `theme.css`
+  as stylesheet rules keyed off class names (`.band`, `.mean`, `.event-span`, `.ref-limit`),
+  not as attributes. This was a real bug caught in review, not a style preference.
+- **Zoom ceiling is one second per pixel**: `scaleExtent([1, (end-start)/1000 / chartWidth])`,
+  about 2,380x on a 1,126 px plot. At full zoom `/query` returns level 0, i.e. raw seconds.
+- **Every zoom/pan refetches `/query` and `/stats`**, debounced 100 ms, with the previous pair
+  cancelled through one `AbortController` so a slow response cannot repaint a newer view.
+- `/query`'s `width` is the measured plot width in pixels (`ResizeObserver`), clamped to the
+  API's 1-5000, so a resize refetches at the new resolution.
+- The y axis fits the visible data with 12% padding, so quiet stretches still show structure.
+  Reference lines are drawn only when they fall inside that range.
+- Vite was upgraded to 7.x (`@vitejs/plugin-react` 5.x) because 5.x shipped two advisories in
+  the dev server's esbuild. `npm audit` is now clean.
+- Frontend is plain JavaScript, no UI or chart library beyond React + D3, per the Decisions.
+
 ## Progress
 
 - [x] Step 0: Load and check the data
@@ -523,5 +564,5 @@ Notes:
 - [x] Step 3: Event search
 - [x] Step 4: Benchmarks
 - [x] Step 5: API server
-- [ ] Step 6: Dashboard
-- [ ] Step 7: README report
+- [x] Step 6: Dashboard
+- [x] Step 7: README report

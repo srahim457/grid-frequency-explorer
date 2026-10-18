@@ -1,0 +1,271 @@
+/* Cyberpunk dark theme.
+   The three data colours were validated against a #000000 surface for the
+   dark-mode lightness band, chroma floor, all-pairs CVD separation (worst
+   dE 11.0) and contrast. Pure neon failed the lightness band, so the glow
+   comes from SVG bloom halos rather than from blowing out the hues. */
+:root {
+  --bg: #000000;
+  --surface: #07090b;
+  --surface-2: #0c1114;
+  --edge: #16242a;
+  --grid: #16242a;
+
+  --axis: #ffffff;           /* axes are white, at maximum contrast */
+  --text: #e8f6f8;
+  --text-dim: #7fa6ae;
+
+  --data: #00a3ba;           /* frequency: mean line + min-max band */
+  --data-glow: #4fe8ff;
+  --event: #be1a85;          /* excursions outside the band */
+  --event-glow: #ff57c8;
+  --limit: #b57c00;          /* 49.5 / 50.5 statutory limits */
+  --limit-glow: #ffc43d;
+  --nominal: #5a6b70;        /* 50.0 Hz nominal */
+
+  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  /* A faint scanline wash, fixed so it does not move with content. */
+  background-image: repeating-linear-gradient(
+    0deg, rgba(0, 163, 186, 0.035) 0 1px, transparent 1px 3px);
+  background-attachment: fixed;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 22px 26px;
+  min-height: 100%;
+}
+
+/* --- header: title left, stats right ----------------------------------- */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--edge);
+  padding-bottom: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--data-glow);
+  text-shadow: 0 0 14px rgba(79, 232, 255, 0.55);
+}
+
+.subtitle {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+/* --- stats panel -------------------------------------------------------- */
+
+.stats {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.stat {
+  min-width: 92px;
+  padding: 7px 11px;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-left: 2px solid var(--data);
+}
+
+.stat-label {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.stat-value {
+  display: block;
+  margin-top: 3px;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.stat.is-extreme .stat-value { color: var(--event-glow); }
+.stat-unit { font-size: 11px; color: var(--text-dim); margin-left: 3px; }
+
+.stat-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 7px 11px;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-left: 2px solid var(--limit);
+  font-size: 10.5px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
+.stat-meta b { color: var(--text); font-weight: 500; }
+
+/* --- chart -------------------------------------------------------------- */
+
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+}
+
+.chart-wrap svg { display: block; width: 100%; }
+
+.chart-hint {
+  display: block;
+  padding: 8px 12px;
+  border-top: 1px solid var(--edge);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+.chart-busy {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--data-glow);
+  text-transform: uppercase;
+}
+
+.axis path, .axis line { stroke: var(--axis); }
+.axis text { fill: var(--axis); font-size: 10.5px; font-family: var(--mono); }
+.grid line { stroke: var(--grid); stroke-dasharray: 2 4; }
+
+/* --- events ------------------------------------------------------------- */
+
+.events { border: 1px solid var(--edge); background: var(--surface); }
+
+.events-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--edge);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 18px 1.6fr 0.8fr 0.8fr 1fr 1.4fr auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--edge);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.event-row:last-child { border-bottom: none; }
+.event-row:hover, .event-row:focus-visible {
+  background: var(--surface-2);
+  outline: none;
+}
+.event-row:hover .event-go { color: var(--data-glow); }
+
+.event-marker { color: var(--event-glow); }
+.event-extreme { color: var(--event-glow); font-variant-numeric: tabular-nums; }
+.event-dim { color: var(--text-dim); }
+.event-go { color: var(--text-dim); letter-spacing: 0.1em; font-size: 10px; }
+
+.empty, .error {
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.error { color: var(--event-glow); }
+
+.button {
+  padding: 6px 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--edge);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.button:hover { border-color: var(--data); color: var(--data-glow); }
+
+/* --- SVG marks ----------------------------------------------------------
+   These live here rather than on the elements because CSS custom properties
+   do NOT resolve inside SVG presentation attributes (fill="var(--data)" is
+   ignored and falls back to black). As stylesheet declarations they work. */
+
+.band { fill: var(--data); fill-opacity: 0.28; }
+
+.mean-glow {
+  fill: none;
+  stroke: var(--data-glow);
+  stroke-width: 2.5;
+  stroke-opacity: 0.45;
+}
+
+.mean { fill: none; stroke: var(--data-glow); stroke-width: 1.2; }
+
+.event-span {
+  fill: var(--event);
+  fill-opacity: 0.22;
+  stroke: var(--event-glow);
+  stroke-opacity: 0.5;
+}
+
+.ref line { stroke-width: 1; stroke-dasharray: 7 5; }
+.ref text { font-size: 9.5px; text-anchor: end; font-family: var(--mono); }
+.ref-limit line { stroke: var(--limit); }
+.ref-limit text { fill: var(--limit-glow); }
+.ref-nominal line { stroke: var(--nominal); }
+.ref-nominal text { fill: var(--nominal); }
+
+.axis-title {
+  fill: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
