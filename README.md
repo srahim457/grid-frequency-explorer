@@ -1,5 +1,5 @@
 # Grid Frequency Explorer
-[![Watch the video](<img width="1466" height="841" alt="Screenshot 2026-10-18 at 8 39 54 PM" src="https://github.com/user-attachments/assets/9ace1bb2-89de-43a1-b1eb-c2a1b59640a7" />)](https://youtu.be/XEDpbMLXyR4)
+[![Watch the demo video](https://github.com/user-attachments/assets/9ace1bb2-89de-43a1-b1eb-c2a1b59640a7)](https://youtu.be/XEDpbMLXyR4)
 Click the image to see a short video demo!
 
 Fast zooming and event search over 2.7 million readings of Great Britain grid frequency
