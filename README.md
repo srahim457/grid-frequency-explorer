@@ -1,5 +1,8 @@
 # Grid Frequency Explorer
 
+<!-- DEMO VIDEO: on github.com, edit this file and drag your .mp4/.mov onto this line.
+     GitHub uploads it and inserts a link that renders as a video player. -->
+
 Fast zooming and event search over 2.7 million readings of Great Britain grid frequency
 (August 2019), using a segment tree of precomputed summaries.
 
@@ -100,6 +103,18 @@ The tree loses on short ranges: slicing 60 numbers with numpy is cheaper than wa
 in Python. It wins from about one day up, and is ~100× faster than binary search on the full
 month. That's Python overhead, not the algorithm.
 
+![Query time vs range size, log scale](results/benchmark_ranges_log.png)
+
+*Log scale: each gridline is 10× slower than the one below. Brute force reads all 2.7M points
+no matter what you ask for, so it stays high. Binary search grows with the size of the range.
+The tree stays roughly flat, and dips at the full month because that range splits into only
+9 nodes.*
+
+![The same data on ordinary scales, zoomed three ways](results/benchmark_ranges_panels.png)
+
+*The same numbers on ordinary scales at three zoom levels. The top panel shows the true size
+of the gap; the bottom panel shows binary search beating the tree on short ranges.*
+
 Growth with data size is the real argument:
 
 | Points | Tree build | Tree | Binary search | Brute force |
@@ -111,7 +126,11 @@ Growth with data size is the real argument:
 From 4.2M to 16.8M points (4×), binary search and brute force take about 4.2× longer; the tree
 takes about 1.1× longer.
 
-![Scaling](results/benchmark_scaling.png)
+![Query time vs dataset size](results/benchmark_scaling.png)
+
+*Both axes are log scale, so the slope of a line shows how fast its time grows with data size.
+Brute force and binary search climb in step with the data; the realistic tree line (solid) is
+nearly flat. The dashed line is the one-off cost of building the tree.*
 
 Notes:
 
